@@ -1,18 +1,16 @@
 ###########################################################################
 # GAUSSIAN PLUME MODEL FOR TEACHING PURPOSES                              #
 # PAUL CONNOLLY (UNIVERSITY OF MANCHESTER, 2017)                          #
-# MODIFIED FOR METHANE BY AIDEN KERR (UNIVERSITY OF BRISTOL, 2021)        #
-# IT IS USED TO ESTIMATE THE IMAPCTS OF METHANE POINT SOURCES ON          #
-# THE ATMOSPHERIC METHANE LEVELS MEASURED FROM THE CHEMISTRY BUILDING     #
+# MODIFIED BY AIDEN KERR (UNIVERSITY OF BRISTOL, 2021)                    #
+# USED TO ESTIMATE THE IMPACTS OF METHANE POINT SOURCES ON                #
+# ATMOSPHERIC POLLUTANT LEVELS USING REAL-LIFE METEOROLOGICAL DATA        #
 ###########################################################################
-
 
 import numpy as np
 import pandas as pd
 import sys
 from scipy.special import erfcinv as erfcinv
 import tqdm as tqdm
-import datetime
 
 from gauss_func import gauss_func
 
@@ -88,21 +86,27 @@ humidify = DRY_AEROSOL
 stab1 = 5  # set from 1-6
 stability_used = CONSTANT_STABILITY
 
-output = PLAN_VIEW  # for some reason, HEIGHT_SLICE isn't working - due to index out of range error
+output = BOTH  # for some reason, HEIGHT_SLICE isn't working - due to index out of range error
 x_slice = 200  # position to take the slice in the x-direction
 y_slice = 200  # position to plot concentrations vs time
 
 wind = MET_WIND
-wind_speed_input = 0.1
+wind_data = 'hourly_met_data.csv'
+wind_spd_column = 'Wind Speed  Avg(m/s)'
+
+wind_speed_input = 1
 #stacks = 'NAEI SOURCES'
+NAEI_data = 'Close_Sources.csv'
 stacks = THREE_STACKS
 stack_x = [-4894., 2536., -6294.]  # x pos. of each of the stacks
 stack_y = [9306., 7806., 7306.]
 
+map_img = plt.imread('Bristol10kmradiusmap.png')
+
 Q = [0.747, 0.381, 0.0964]  # mass emitted per unit time (g / s) (23.57 tonnes per year = 0.747 g/s)
 H = [10., 10., 10.]  # stack height, m
-days = 10  # run the model for n days
-start_date = '2019-01-01'
+days = 90  # run the model for n days
+start_date = '2018-06-01'  # for use of wind data timeseries
 # --------------------------------------------------------------------------
 times = np.mgrid[1:days * 24 + 1:1] / 24.
 
@@ -111,11 +115,11 @@ Dz = 10.
 
 # SECTION 2: Act on the configuration information
 if stacks == 'NAEI SOURCES':
-    chem_building_loc = [358394, 173194]
-    close_sources = pd.read_csv('Close_Sources.csv')
-    stack_x = close_sources['Easting'] - chem_building_loc[0]
-    stack_y = close_sources['Northing'] - chem_building_loc[1]
-    Q = close_sources['Emission'] * 1000000 / (365 * 24 * 60 * 60)  # converts emissions data to g/s
+    centre_loc = [358394, 173194]
+    sources = pd.read_csv(NAEI_data)
+    stack_x = sources['Easting'] - centre_loc[0]
+    stack_y = sources['Northing'] - centre_loc[1]
+    Q = sources['Emission'] * 1000000 / (365 * 24 * 60 * 60)  # converts emissions data to g/s
     print(str(Q))
     stacks = len(stack_x)
     print('Stacks: ' + str(stacks))
@@ -171,10 +175,10 @@ elif wind == MET_WIND:
     end_date = pd.Timedelta(days - 1, unit='d') + pd.to_datetime(start_date)
     end_date = end_date.strftime('%Y-%m-%d')
     print('Start: ' + start_date + ' End: ' + end_date)
-    met_data = pd.read_csv('hourly_met_data.csv', index_col='datetime', parse_dates=True)
+    met_data = pd.read_csv(wind_data, index_col='datetime', parse_dates=True)
     met_data = met_data.loc[start_date:end_date]
     print(met_data.to_string())
-    wind_speed = met_data['Wind Speed  Avg(m/s)']
+    wind_speed = met_data[wind_spd_column]
     wind_speed[wind_speed < 0.5] = None  # Replace all values lower than 2 as None
     wind_speed = wind_speed.to_list()
     print('Wind speed:' + str(wind_speed))
@@ -220,16 +224,16 @@ ppb = C1 * (mol_volume / mol_mass_gcm3)
 
 # output the plots
 if wind == MET_WIND:
-    title = 'Met Data starting from ' + start_date + ' for ' + str(days) + ' days'
+    title = 'Gaussian Modelling starting from ' + start_date + ' for ' + str(days) + ' days'
 else:
     title = stability_str + '\n' + wind_dir_str + ', ' + str(wind_speed_input) + 'm/s' + ' for ' + str(days) + 'days'
 
 if output == PLAN_VIEW or output == BOTH:
-    bristol_map = plt.imread('Bristol10kmradiusmap.png')
+
     BBox = (-radius, radius, -radius, radius)
     plt.figure()
     plt.ion()
-    plt.imshow(bristol_map, zorder=0, extent=BBox, aspect='equal')
+    plt.imshow(map_img, zorder=0, extent=BBox, aspect='equal')
     plt.pcolor(x, y, np.mean(ppb, axis=2) * 1e6, cmap='jet', shading='auto', alpha=0.15)
     # plt.scatter(x_slice, y_slice, c='black', s=20)  # delete!!
     plt.clim((0, 10))
@@ -242,7 +246,7 @@ if output == PLAN_VIEW or output == BOTH:
     plt.show()
     print('Plotted Plan View')
 
-elif output == HEIGHT_SLICE:
+if output == HEIGHT_SLICE:
     plt.figure()
     plt.ion()
 
@@ -256,7 +260,7 @@ elif output == HEIGHT_SLICE:
     plt.savefig('Height_slice_plot')
     plt.show()
 
-elif output == SURFACE_TIME or output == BOTH:
+if output == SURFACE_TIME or output == BOTH:
     f, (ax1, ax2) = plt.subplots(2, sharex=True, sharey=False)
     ax1.plot(times, 1e6 * np.squeeze(ppb[y_slice, x_slice, :]))
     try:
@@ -278,10 +282,9 @@ elif output == SURFACE_TIME or output == BOTH:
     f.show()
     print('Surface Time plotted')
 
-elif output == NO_PLOT:
+if output == NO_PLOT:
     print('don''t plot')
-else:
-    sys.exit()
+
 
 
 
