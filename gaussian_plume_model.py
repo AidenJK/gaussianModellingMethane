@@ -105,8 +105,8 @@ map_img = plt.imread('Bristol10kmradiusmap.png')
 
 Q = [0.747, 0.381, 0.0964]  # mass emitted per unit time (g / s) (23.57 tonnes per year = 0.747 g/s)
 H = [10., 10., 10.]  # stack height, m
-days = 90  # run the model for n days
-start_date = '2018-06-01'  # for use of wind data timeseries
+days = 5  # run the model for n days
+start_date = '2019-01-01'  # for use of wind data timeseries
 # --------------------------------------------------------------------------
 times = np.mgrid[1:days * 24 + 1:1] / 24.
 
